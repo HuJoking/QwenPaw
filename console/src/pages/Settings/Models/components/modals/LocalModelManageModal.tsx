@@ -766,8 +766,14 @@ export function LocalModelManageModal({
       title={t("models.localModelsTitle", { provider: provider.name })}
       open={open}
       onCancel={handleClose}
-      footer={null}
-      width={800}
+      footer={
+        <div className={styles.modalFooter}>
+          <div className={styles.modalFooterRight}>
+            <Button onClick={handleClose}>{t("models.cancel")}</Button>
+          </div>
+        </div>
+      }
+      width={700}
       destroyOnHidden
     >
       {(loadingLocal || loadingStatus || loadingLocalConfig) &&

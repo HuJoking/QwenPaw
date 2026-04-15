@@ -115,7 +115,7 @@ class CronJobRequest(BaseModel):
 
     model_config = ConfigDict(extra="allow")
 
-    input: Optional[Any] = None
+    input: Any
     session_id: Optional[str] = None
     user_id: Optional[str] = None
 
@@ -124,7 +124,7 @@ TaskType = Literal["text", "agent"]
 
 
 class CronJobSpec(BaseModel):
-    id: Optional[str] = None
+    id: str
     name: str
     enabled: bool = True
 
@@ -144,7 +144,6 @@ class CronJobSpec(BaseModel):
                 raise ConfigurationException(
                     message="task_type is text but text is empty",
                 )
-            self.request = None
         elif self.task_type == "agent":
             if self.request is None:
                 raise ConfigurationException(

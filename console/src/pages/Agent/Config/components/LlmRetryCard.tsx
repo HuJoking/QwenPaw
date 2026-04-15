@@ -11,7 +11,11 @@ export function LlmRetryCard({ llmRetryEnabled = true }: LlmRetryCardProps) {
   const form = Form.useFormInstance();
 
   return (
-    <Card className={styles.formCard} title={t("agentConfig.llmRetryTitle")}>
+    <Card
+      className={styles.formCard}
+      title={t("agentConfig.llmRetryTitle")}
+      style={{ marginTop: 16 }}
+    >
       <Form.Item
         name="llm_retry_enabled"
         label={t("agentConfig.llmRetryEnabled")}

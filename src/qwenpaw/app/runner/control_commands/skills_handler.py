@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Handler for /skills command.
 
-Lists enabled skills for the current channel in a compact format.
+Lists enabled skills for the current channel.
 """
 
 from __future__ import annotations
@@ -28,17 +28,6 @@ class SkillsCommandHandler(BaseControlCommandHandler):
     """
 
     command_name = "/skills"
-
-    @staticmethod
-    def _truncate_description(
-        text: str,
-        limit: int = 32,
-    ) -> str:
-        """Return a single-line shortened description for compact lists."""
-        normalized = " ".join(text.split())
-        if len(normalized) <= limit:
-            return normalized
-        return f"{normalized[: limit - 3].rstrip()}..."
 
     async def handle(self, context: ControlContext) -> str:
         workspace = context.workspace
@@ -71,26 +60,31 @@ class SkillsCommandHandler(BaseControlCommandHandler):
 
             # Read frontmatter for display name.
             skill_md = skill_dir / "SKILL.md"
-            description = (
+            display_name = folder_name
+            desc = (
                 entry.get("metadata", {}).get("description")
-                or "No description."
+                or "No description"
             )
             if skill_md.exists():
                 raw = read_text_file_with_encoding_fallback(skill_md)
                 post = fm.loads(raw)
-                description = post.get("description") or description
+                display_name = post.get("name") or folder_name
+                desc = post.get("description") or desc
 
             lines.append(
-                f"**{folder_name}**: "
-                f"{self._truncate_description(description)}",
+                f"**{folder_name}**\n\n"
+                f"- **name**: {display_name}\n"
+                f"- **description**: {desc}\n"
+                f"- **command**: `/{folder_name}`, "
+                f"`/[{folder_name}]`",
             )
 
         if not found:
             return "No skills are currently enabled for this channel."
         lines.append(
             "\n---\n"
-            "*Use `/<skill_name>` for details, "
-            "`/<skill_name> <input>` to invoke. "
-            "`/[skill_name]` also works.*",
+            "*These are all enabled skills for this channel. "
+            "Use `/<skill_name> <input>` to invoke, "
+            "or `/<skill_name>` to view details.*",
         )
         return "\n\n".join(lines)

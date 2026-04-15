@@ -1,10 +1,10 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef } from "react";
 import { Card, Button, Form } from "antd";
 import { useAppMessage } from "../../../hooks/useAppMessage";
 import { PlusOutlined } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
 import { agentsApi } from "../../../api/modules/agents";
-import { invalidateSkillCache, skillApi } from "../../../api/modules/skill";
+import { skillApi } from "../../../api/modules/skill";
 import type { AgentSummary } from "../../../api/types/agents";
 import { useAgentStore } from "../../../stores/agentStore";
 import { useAgents } from "./useAgents";
@@ -39,9 +39,6 @@ export default function AgentsPage() {
 
   const handleEdit = async (agent: AgentSummary) => {
     try {
-      setSelectedSkills([]);
-      installedSkillsRef.current = [];
-      invalidateSkillCache({ agentId: agent.id });
       const config = await agentsApi.getAgent(agent.id);
       setEditingAgent(agent);
       form.setFieldsValue(config);
@@ -79,9 +76,9 @@ export default function AgentsPage() {
     }
   };
 
-  const handleInstalledSkillsLoaded = useCallback((skills: string[]) => {
+  const handleInstalledSkillsLoaded = (skills: string[]) => {
     installedSkillsRef.current = skills;
-  }, []);
+  };
 
   const handleSubmit = async () => {
     try {
@@ -94,11 +91,9 @@ export default function AgentsPage() {
       const payload = { ...values, workspace_dir };
 
       if (editingAgent) {
-        const previousInstalledSkills = installedSkillsRef.current;
         const newSkills = selectedSkills.filter(
-          (skill) => !previousInstalledSkills.includes(skill),
+          (s) => !installedSkillsRef.current.includes(s),
         );
-
         for (const skill of newSkills) {
           await skillApi.downloadSkillPoolSkill({
             skill_name: skill,
@@ -106,13 +101,6 @@ export default function AgentsPage() {
           });
         }
         await agentsApi.updateAgent(editingAgent.id, payload);
-        installedSkillsRef.current = [
-          ...previousInstalledSkills,
-          ...newSkills.filter(
-            (skill) => !previousInstalledSkills.includes(skill),
-          ),
-        ];
-        invalidateSkillCache({ agentId: editingAgent.id });
         message.success(t("agent.updateSuccess"));
       } else {
         const result = await agentsApi.createAgent({
@@ -126,9 +114,6 @@ export default function AgentsPage() {
       await loadAgents();
     } catch (error: any) {
       console.error("Failed to save agent:", error);
-      if (editingAgent) {
-        invalidateSkillCache({ agentId: editingAgent.id });
-      }
       message.error(error.message || t("agent.saveFailed"));
     }
   };

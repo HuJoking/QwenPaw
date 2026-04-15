@@ -51,27 +51,24 @@ export function AgentModal({
 
     const fetchPool = skillApi.listSkillPoolSkills();
     const fetchInstalled = editingAgent
-      ? skillApi.listSkills(editingAgent.id)
+      ? skillApi
+          .listSkills(editingAgent.id)
+          .then((skills) => skills.map((s) => s.name))
       : Promise.resolve([]);
 
     Promise.all([fetchPool, fetchInstalled])
-      .then(([pool, workspaceSkills]) => {
-        const poolSkillNames = new Set(pool.map((skill) => skill.name));
-        const installedSkills = workspaceSkills
-          .filter((skill) => poolSkillNames.has(skill.name))
-          .map((skill) => skill.name);
-
+      .then(([pool, installed]) => {
         setPoolSkills(pool);
-        setInstalledSkills(installedSkills);
-        onInstalledSkillsLoaded(installedSkills);
+        setInstalledSkills(installed);
+        onInstalledSkillsLoaded(installed);
         if (editingAgent) {
-          onSelectedSkillsChange(installedSkills);
+          onSelectedSkillsChange(installed);
         } else {
           onSelectedSkillsChange([]);
         }
       })
       .finally(() => setLoadingSkills(false));
-  }, [editingAgent, onInstalledSkillsLoaded, onSelectedSkillsChange, open]);
+  }, [open, editingAgent?.id]);
 
   const toggleSkill = (name: string) => {
     const isInstalled = editingAgent && installedSkills.includes(name);
@@ -86,7 +83,9 @@ export function AgentModal({
 
   const handleSelectAll = () => {
     const allNames = poolSkills.map((s) => s.name);
-    onSelectedSkillsChange(allNames);
+    onSelectedSkillsChange(
+      Array.from(new Set([...installedSkills, ...allNames])),
+    );
   };
 
   const handleSelectBuiltin = () => {

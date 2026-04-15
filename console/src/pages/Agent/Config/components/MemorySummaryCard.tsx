@@ -10,6 +10,7 @@ export function MemorySummaryCard() {
     <Card
       className={styles.formCard}
       title={t("agentConfig.memorySummaryTitle")}
+      style={{ marginTop: 16 }}
     >
       <Form.Item
         label={t("agentConfig.memorySummaryEnabled")}

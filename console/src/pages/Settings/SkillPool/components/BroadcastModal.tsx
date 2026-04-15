@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Button, Modal, Tooltip } from "@agentscope-ai/design";
+import { Button, Modal } from "@agentscope-ai/design";
 import { CheckOutlined } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
 import type {
@@ -72,7 +72,6 @@ export function BroadcastModal({
             <div className={styles.bulkActions}>
               <Button
                 size="small"
-                type="primary"
                 onClick={() => setSelectedSkillNames(skills.map((s) => s.name))}
               >
                 {t("agent.selectAll")}
@@ -114,13 +113,11 @@ export function BroadcastModal({
                     <CheckOutlined />
                   </span>
                 )}
-                <Tooltip title={skill.name}>
-                  <div
-                    className={`${styles.pickerCardTitle} ${styles.compactPickerTitle}`}
-                  >
-                    {skill.name}
-                  </div>
-                </Tooltip>
+                <div
+                  className={`${styles.pickerCardTitle} ${styles.compactPickerTitle}`}
+                >
+                  {skill.name}
+                </div>
               </div>
             );
           })}
@@ -133,7 +130,6 @@ export function BroadcastModal({
             <div className={styles.bulkActions}>
               <Button
                 size="small"
-                type="primary"
                 onClick={() =>
                   setSelectedWorkspaceIds(workspaces.map((ws) => ws.agent_id))
                 }
@@ -173,27 +169,17 @@ export function BroadcastModal({
                     <CheckOutlined />
                   </span>
                 )}
-                <Tooltip
-                  title={getAgentDisplayName(
+                <div
+                  className={`${styles.pickerCardTitle} ${styles.compactPickerTitle}`}
+                >
+                  {getAgentDisplayName(
                     {
                       id: workspace.agent_id,
                       name: workspace.agent_name ?? "",
                     },
                     t,
                   )}
-                >
-                  <div
-                    className={`${styles.pickerCardTitle} ${styles.compactPickerTitle}`}
-                  >
-                    {getAgentDisplayName(
-                      {
-                        id: workspace.agent_id,
-                        name: workspace.agent_name ?? "",
-                      },
-                      t,
-                    )}
-                  </div>
-                </Tooltip>
+                </div>
               </div>
             );
           })}

@@ -11,6 +11,7 @@ export function ToolResultCompactCard() {
     <Card
       className={styles.formCard}
       title={t("agentConfig.toolResultCompactTitle")}
+      style={{ marginTop: 16 }}
     >
       <Form.Item
         label={t("agentConfig.toolResultCompactEnabled")}

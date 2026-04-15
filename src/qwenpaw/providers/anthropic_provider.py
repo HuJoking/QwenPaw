@@ -14,9 +14,7 @@ import anthropic
 from qwenpaw.providers.multimodal_prober import (
     ProbeResult,
     _PROBE_IMAGE_B64,
-    _IMAGE_PROBE_PROMPT,
     _is_media_keyword_error,
-    evaluate_image_probe_answer,
 )
 from qwenpaw.providers.provider import ModelInfo, Provider
 
@@ -192,17 +190,7 @@ class AnthropicProvider(Provider):
         model_id: str,
         timeout: float = 10,
     ) -> tuple[bool, str]:
-        """Probe image support via Anthropic messages API.
-
-        Uses a two-stage check (same strategy as OpenAIProvider):
-        1. If the API rejects the request (400 / media-keyword error)
-           -> not supported.
-        2. If accepted, verify the model can *actually perceive* the
-           image by asking for the dominant color of a solid-red PNG.
-           Some providers silently accept image payloads without
-           processing them, so a pure API-error check would produce
-           false positives.
-        """
+        """Probe image support via Anthropic messages API."""
         logger.info(
             "Image probe start: model=%s url=%s",
             model_id,
@@ -213,7 +201,7 @@ class AnthropicProvider(Provider):
         try:
             resp = await client.messages.create(
                 model=model_id,
-                max_tokens=200,
+                max_tokens=1,
                 messages=[
                     {
                         "role": "user",
@@ -226,23 +214,22 @@ class AnthropicProvider(Provider):
                                     "data": _PROBE_IMAGE_B64,
                                 },
                             },
-                            {
-                                "type": "text",
-                                "text": _IMAGE_PROBE_PROMPT,
-                            },
+                            {"type": "text", "text": "hi"},
                         ],
                     },
                 ],
+                stream=True,
             )
-            answer = ""
-            for block in resp.content:
-                if hasattr(block, "text"):
-                    answer += block.text
-            return evaluate_image_probe_answer(
-                answer,
+            async for _ in resp:
+                break
+            elapsed = time.monotonic() - start_time
+            logger.info(
+                "Image probe done: model=%s result=%s %.2fs",
                 model_id,
-                start_time,
+                True,
+                elapsed,
             )
+            return True, "Image supported"
         except anthropic.APIError as e:
             elapsed = time.monotonic() - start_time
             logger.warning(
