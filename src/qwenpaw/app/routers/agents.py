@@ -152,17 +152,45 @@ def _read_profile_description(workspace_dir: str) -> str:
 @router.get(
     "",
     response_model=AgentListResponse,
-    summary="List all agents",
-    description="Get list of all configured agents",
+    summary="List accessible agents",
+    description="Get list of agents accessible to current user",
 )
-async def list_agents() -> AgentListResponse:
-    """List all configured agents."""
+async def list_agents(request: Request) -> AgentListResponse:
+    """List agents accessible to current user."""
     config = load_config()
     ordered_agent_ids = _normalized_agent_order(config)
 
     agents = []
+    
+    # 获取当前用户ID（如果已认证）
+    user_id = getattr(request.state, "user_id", None)
+    
+    # 调试日志
+    import logging
+    logger = logging.getLogger(__name__)
+    auth_header = request.headers.get("Authorization", "")
+    has_bearer = auth_header.startswith("Bearer ")
+    logger.info(f"list_agents: user_id={user_id}, total_agents={len(ordered_agent_ids)}, has_bearer={has_bearer}, auth_header={auth_header[:20] if auth_header else 'None'}...")
+    
     for agent_id in ordered_agent_ids:
         agent_ref = config.agents.profiles[agent_id]
+        
+        # 用户权限检查
+        if user_id:
+            try:
+                from ..user_context import validate_agent_access
+                if validate_agent_access(user_id, agent_id):
+                    logger.info(f"list_agents: user {user_id} has access to agent {agent_id}")
+                else:
+                    logger.info(f"list_agents: user {user_id} NO access to agent {agent_id}, skipping")
+                    continue  # 跳过用户无权访问的Agent
+            except Exception as e:
+                # user_context模块不存在或有其他错误，记录错误但继续（向后兼容）
+                logger.warning(f"权限验证失败，跳过权限检查: {e}")
+                # 在调试模式下，可以记录更多信息
+                # import traceback
+                # logger.debug(f"权限验证失败详情: {traceback.format_exc()}")
+        
         try:
             agent_config = load_agent_config(agent_id)
             description = agent_config.description or ""
@@ -233,8 +261,26 @@ async def reorder_agents(
     summary="Get agent details",
     description="Get complete configuration for a specific agent",
 )
-async def get_agent(agentId: str = PathParam(...)) -> AgentProfileConfig:
-    """Get agent configuration."""
+async def get_agent(
+    agentId: str = PathParam(...),
+    request: Request = None,
+) -> AgentProfileConfig:
+    """Get agent configuration with permission check."""
+    # 验证用户对Agent的访问权限
+    if request:
+        try:
+            from ..agent_context import get_agent_for_request
+            # 这会验证权限，如果无权访问会抛出HTTPException
+            await get_agent_for_request(request, agentId)
+        except Exception as e:
+            # agent_context模块不存在或有其他错误，记录错误但跳过权限验证（向后兼容）
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning(f"Agent权限验证失败，跳过权限检查: {e}")
+            # 在调试模式下，可以记录更多信息
+            # import traceback
+            # logger.debug(f"权限验证失败详情: {traceback.format_exc()}")
+    
     try:
         agent_config = load_agent_config(agentId)
         return agent_config
@@ -253,6 +299,7 @@ async def get_agent(agentId: str = PathParam(...)) -> AgentProfileConfig:
 )
 async def create_agent(
     request: CreateAgentRequest = Body(...),
+    request_obj: Request = None,
 ) -> AgentProfileRef:
     """Create a new agent with auto-generated ID."""
     config = load_config()
@@ -271,10 +318,32 @@ async def create_agent(
             detail="Failed to generate unique agent ID after 10 attempts",
         )
 
-    workspace_dir = Path(
-        request.workspace_dir or f"{WORKING_DIR}/workspaces/{new_id}",
-    ).expanduser()
-    workspace_dir.mkdir(parents=True, exist_ok=True)
+    # 获取当前用户ID（如果已认证）
+    user_id = getattr(request_obj.state, "user_id", None) if request_obj else None
+    
+    # 确定工作区目录
+    if user_id and not request.workspace_dir:
+        # 为认证用户使用用户专属工作区目录
+        try:
+            from ..user_context import get_user_agent_workspace_dir, register_agent_owner
+            workspace_dir = get_user_agent_workspace_dir(user_id, new_id)
+            workspace_dir.mkdir(parents=True, exist_ok=True)
+            
+            # 注册Agent所有权
+            register_agent_owner(new_id, user_id)
+            logger.info(f"Created agent {new_id} for user {user_id} at {workspace_dir}")
+        except ImportError:
+            # user_context模块不存在，使用默认路径
+            workspace_dir = Path(
+                f"{WORKING_DIR}/workspaces/{new_id}",
+            ).expanduser()
+            workspace_dir.mkdir(parents=True, exist_ok=True)
+    else:
+        # 使用请求中指定的目录或默认目录
+        workspace_dir = Path(
+            request.workspace_dir or f"{WORKING_DIR}/workspaces/{new_id}",
+        ).expanduser()
+        workspace_dir.mkdir(parents=True, exist_ok=True)
 
     from ...config.config import (
         ChannelConfig,
@@ -330,6 +399,21 @@ async def update_agent(
     request: Request = None,
 ) -> AgentProfileConfig:
     """Update agent configuration."""
+    # 验证用户对Agent的访问权限
+    if request:
+        try:
+            from ..agent_context import get_agent_for_request
+            # 这会验证权限，如果无权访问会抛出HTTPException
+            await get_agent_for_request(request, agentId)
+        except Exception as e:
+            # agent_context模块不存在或有其他错误，记录错误但跳过权限验证（向后兼容）
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning(f"Agent权限验证失败，跳过权限检查: {e}")
+            # 在调试模式下，可以记录更多信息
+            # import traceback
+            # logger.debug(f"权限验证失败详情: {traceback.format_exc()}")
+    
     config = load_config()
 
     if agentId not in config.agents.profiles:
@@ -362,6 +446,21 @@ async def delete_agent(
     request: Request = None,
 ) -> dict:
     """Delete an agent."""
+    # 验证用户对Agent的访问权限
+    if request:
+        try:
+            from ..agent_context import get_agent_for_request
+            # 这会验证权限，如果无权访问会抛出HTTPException
+            await get_agent_for_request(request, agentId)
+        except Exception as e:
+            # agent_context模块不存在或有其他错误，记录错误但跳过权限验证（向后兼容）
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning(f"Agent权限验证失败，跳过权限检查: {e}")
+            # 在调试模式下，可以记录更多信息
+            # import traceback
+            # logger.debug(f"权限验证失败详情: {traceback.format_exc()}")
+    
     config = load_config()
 
     if agentId not in config.agents.profiles:
@@ -397,6 +496,21 @@ async def toggle_agent_enabled(
     request: Request = None,
 ) -> dict:
     """Toggle agent enabled state."""
+    # 验证用户对Agent的访问权限
+    if request:
+        try:
+            from ..agent_context import get_agent_for_request
+            # 这会验证权限，如果无权访问会抛出HTTPException
+            await get_agent_for_request(request, agentId)
+        except Exception as e:
+            # agent_context模块不存在或有其他错误，记录错误但跳过权限验证（向后兼容）
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning(f"Agent权限验证失败，跳过权限检查: {e}")
+            # 在调试模式下，可以记录更多信息
+            # import traceback
+            # logger.debug(f"权限验证失败详情: {traceback.format_exc()}")
+    
     config = load_config()
 
     if agentId not in config.agents.profiles:

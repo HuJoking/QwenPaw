@@ -95,7 +95,7 @@ if _legacy_copaw_dir.exists():
     WORKING_DIR = _legacy_copaw_dir.resolve()
 else:
     WORKING_DIR = (
-        Path(_get_env("QWENPAW_WORKING_DIR", "~/.qwenpaw"))
+        Path(_get_env("QWENPAW_WORKING_DIR", "~/.qwenpaw/local"))
         .expanduser()
         .resolve()
     )
