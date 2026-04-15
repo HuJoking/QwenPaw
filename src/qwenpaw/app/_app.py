@@ -27,8 +27,7 @@ from ..constant import (
 )
 from ..__version__ import __version__
 from ..utils.logging import setup_logger, add_project_file_handler
-from .user_auth import MultiUserAuthMiddleware, migrate_single_user_to_multi_user, auto_register_admin_from_env
-from .user_context import migrate_existing_agents_to_users, migrate_agent_workspaces_to_user_dirs
+from .auth import AuthMiddleware
 from .routers import router as api_router, create_agent_scoped_router
 from .routers.agent_scoped import AgentContextMiddleware
 from .routers.voice import voice_router
@@ -172,33 +171,9 @@ async def lifespan(
     add_project_file_handler(WORKING_DIR / f"{LOG_NAMESPACE}.log")
 
     # Auto-register admin from env vars (for automated deployments)
-    auto_register_admin_from_env()
-    
-    # Migrate single-user data to multi-user system
-    logger.info("Checking for single-user to multi-user migration...")
-    try:
-        if migrate_single_user_to_multi_user():
-            logger.info("Single-user migration completed successfully")
-        else:
-            logger.info("No single-user data to migrate or migration failed")
-    except Exception as e:
-        logger.error(f"Failed to migrate single-user data: {e}", exc_info=True)
-    
-    # Migrate existing agents to user ownership system
-    logger.info("Checking for agent ownership migration...")
-    try:
-        stats = migrate_existing_agents_to_users()
-        logger.info(f"Agent ownership migration stats: {stats}")
-    except Exception as e:
-        logger.error(f"Failed to migrate agent ownership: {e}", exc_info=True)
+    from .auth import auto_register_from_env
 
-    # Migrate agent workspaces to user directories (physical isolation)
-    logger.info("Checking for agent workspace migration...")
-    try:
-        workspace_stats = migrate_agent_workspaces_to_user_dirs()
-        logger.info(f"Agent workspace migration stats: {workspace_stats}")
-    except Exception as e:
-        logger.error(f"Failed to migrate agent workspaces: {e}", exc_info=True)
+    auto_register_from_env()
 
     try:
         from ..utils.telemetry import (
@@ -456,7 +431,7 @@ app = FastAPI(
 # Add agent context middleware for agent-scoped routes
 app.add_middleware(AgentContextMiddleware)
 
-app.add_middleware(MultiUserAuthMiddleware)
+app.add_middleware(AuthMiddleware)
 
 # Apply CORS middleware if CORS_ORIGINS is set
 if CORS_ORIGINS:

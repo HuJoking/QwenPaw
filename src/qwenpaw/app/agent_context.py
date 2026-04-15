@@ -2,7 +2,6 @@
 """Agent context utilities for multi-agent support.
 
 Provides utilities to get the correct agent instance for each request.
-扩展支持多用户权限验证。
 """
 from contextvars import ContextVar
 from typing import Optional, TYPE_CHECKING
@@ -30,7 +29,7 @@ async def get_agent_for_request(
     request: Request,
     agent_id: Optional[str] = None,
 ) -> "Workspace":
-    """Get agent workspace for current request with user permission check.
+    """Get agent workspace for current request.
 
     Priority:
     1. agent_id parameter (explicit override)
@@ -46,7 +45,7 @@ async def get_agent_for_request(
         Workspace for the specified or active agent
 
     Raises:
-        HTTPException: If agent not found or access denied
+        HTTPException: If agent not found
     """
     from fastapi import HTTPException
 
@@ -84,32 +83,6 @@ async def get_agent_for_request(
             detail=f"Agent '{target_agent_id}' is disabled",
         )
 
-    # 用户权限验证（如果启用了多用户认证）
-    user_id = getattr(request.state, "user_id", None)
-    if user_id:
-        import logging
-        logger = logging.getLogger(__name__)
-        logger.info(f"get_agent_for_request: user_id={user_id}, agent_id={target_agent_id}")
-        # 导入用户上下文进行权限验证
-        try:
-            from .user_context import validate_agent_access
-            if validate_agent_access(user_id, target_agent_id):
-                logger.info(f"get_agent_for_request: user {user_id} has access to agent {target_agent_id}")
-            else:
-                logger.warning(f"get_agent_for_request: user {user_id} NO access to agent {target_agent_id}")
-                raise HTTPException(
-                    status_code=403,
-                    detail=f"Access denied to agent '{target_agent_id}'",
-                )
-        except HTTPException:
-            raise
-        except Exception as e:
-            # user_context模块不存在或有其他错误，记录错误但跳过权限验证（向后兼容）
-            logger.warning(f"权限验证失败，跳过权限检查: {e}")
-            # 在调试模式下，可以记录更多信息
-            # import traceback
-            # logger.debug(f"权限验证失败详情: {traceback.format_exc()}")
-
     # Get MultiAgentManager
     if not hasattr(request.app.state, "multi_agent_manager"):
         raise HTTPException(
@@ -126,10 +99,6 @@ async def get_agent_for_request(
                 status_code=404,
                 detail=f"Agent '{target_agent_id}' not found",
             )
-        
-        # 设置当前Agent ID到上下文
-        set_current_agent_id(target_agent_id)
-        
         return workspace
     except ValueError as e:
         raise HTTPException(

@@ -17,7 +17,7 @@ from ..crons.api import router as cron_router
 from ..runner.api import router as runner_router
 from .console import router as console_router
 from .token_usage import router as token_usage_router
-from .multi_auth import router as auth_router
+from .auth import router as auth_router
 from .messages import router as messages_router
 from .files import router as files_router
 from .settings import router as settings_router
